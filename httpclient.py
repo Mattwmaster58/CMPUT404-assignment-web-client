@@ -18,10 +18,9 @@
 # Write your own HTTP GET and POST
 # The point is to understand what you have to send and get experience with it
 
-import sys
-import socket
 import re
-
+import socket
+import sys
 # you may use urllib to encode data appropriately
 import urllib.parse
 
@@ -37,8 +36,6 @@ class HTTPResponse:
 
 
 class HTTPClient:
-    # def get_host_port(self,url):
-
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
