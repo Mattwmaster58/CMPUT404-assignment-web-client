@@ -65,17 +65,16 @@ class HTTPRequest:
         for key, val in self.headers.items():
             lines.append(f"{key}: {val}")
         lines.append("")
-        if self.body:
-            lines.append(self.body)
+        lines.append(self.body)
         return "\r\n".join(lines)
 
 
 class POSTRequest(HTTPRequest):
     METHOD = "POST"
 
-    def __init__(self, url: str, headers: Dict[str, Any] = None, vars: Dict[str, Any] = None):
-        body = urlencode(vars)
-        super().__init__(url, headers, body)
+    def __init__(self, url: str, vars: Dict[str, Any] = None):
+        body = urlencode(vars or {})
+        super().__init__(url, {}, body)
         self.headers.update({
             # POST should send content length regardless of body.
             "Content-Length": len(self.body),
@@ -96,15 +95,6 @@ class HTTPClient:
         self.socket.connect((host, port))
         return None
 
-    def get_code(self, data):
-        return None
-
-    def get_headers(self, data):
-        return None
-
-    def get_body(self, data):
-        return None
-
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
 
@@ -123,18 +113,28 @@ class HTTPClient:
                 done = not part
         return buffer.decode('utf-8')
 
-    def GET(self, url):
-        request = GETRequest(url)
+    def execute_request(self, request: HTTPRequest) -> HTTPResponse:
         self.connect(request.host, request.port)
         self.sendall(request.serialized)
-        self.socket.shutdown(SHUT_WR)
         raw_resp = self.recvall()
-        return HTTPResponse(code, body)
+        # i know this is really ineffecient, I don't care
+        status, *everything_else = raw_resp.split("\r\n")
+        version, code, *code_phrase = status.split(" ")
+        body_split_idx = None
+        for idx, header_or_body_line in enumerate(everything_else):
+            if header_or_body_line == "":
+                body_split_idx = idx + 1
+                break
+
+        # rejoin what we split asunder earlier
+        body = "\r\n".join(everything_else[body_split_idx:])
+        return HTTPResponse(int(code), body)
+
+    def GET(self, url):
+        return self.execute_request(GETRequest(url))
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
-        return HTTPResponse(code, body)
+        return self.execute_request(POSTRequest(url, args))
 
     def command(self, url, command="GET", args=None):
         if command == "POST":
