@@ -21,18 +21,73 @@
 import re
 import socket
 import sys
+from _socket import SHUT_WR
 # you may use urllib to encode data appropriately
-import urllib.parse
+
+from dataclasses import dataclass, field
+from typing import Dict, Any
+from urllib.parse import urlparse, quote, urlencode
 
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
 
 
+@dataclass
 class HTTPResponse:
-    def __init__(self, code=200, body=""):
-        self.code = code
+    code: int = 200
+    body: str = ""
+
+
+class HTTPRequest:
+    METHOD = ...
+    VERSION = "1.1"
+
+    def __init__(self, url: str, headers: Dict[str, Any] = None, body: str = ""):
         self.body = body
+        parsed = urlparse(url)
+        self.port = parsed.port or 80
+        self.host = parsed.netloc.split(":")[0] # netloc != host, apparently. chop port off netloc
+        self.path = quote(parsed.path)
+        self.headers = {
+            **(headers or {}),
+            # virtual hosting support
+            "Host": self.host,
+            "Connection": "close",
+            "Upgrade-Insecure-Requests": 0,  # i like insecurity
+            "Accept": "*/*",  # don't think this matters, but why not
+        }
+
+    @property
+    def serialized(self):
+        # urlparse will make path empty? not sure whose fault that is
+        lines = [f"{self.METHOD} {self.path or '/'} HTTP/{self.VERSION}"]
+        for key, val in self.headers.items():
+            lines.append(f"{key}: {val}")
+        lines.append("")
+        if self.body:
+            lines.append(self.body)
+        return "\r\n".join(lines)
+
+
+class POSTRequest(HTTPRequest):
+    METHOD = "POST"
+
+    def __init__(self, url: str, headers: Dict[str, Any] = None, vars: Dict[str, Any] = None):
+        body = urlencode(vars)
+        super().__init__(url, headers, body)
+        self.headers.update({
+            # POST should send content length regardless of body.
+            "Content-Length": len(self.body),
+            "Content-Type": "application/x-www-url-encoded",
+        })
+
+
+class GETRequest(HTTPRequest):
+    METHOD = "GET"
+
+    def __init__(self, url: str):
+        super().__init__(url, {}, "")
 
 
 class HTTPClient:
@@ -57,20 +112,23 @@ class HTTPClient:
         self.socket.close()
 
     # read everything from the socket
-    def recvall(self, sock):
+    def recvall(self):
         buffer = bytearray()
         done = False
         while not done:
-            part = sock.recv(1024)
+            part = self.socket.recv(1024)
             if part:
                 buffer.extend(part)
             else:
                 done = not part
         return buffer.decode('utf-8')
 
-    def GET(self, url, args=None):
-        code = 500
-        body = ""
+    def GET(self, url):
+        request = GETRequest(url)
+        self.connect(request.host, request.port)
+        self.sendall(request.serialized)
+        self.socket.shutdown(SHUT_WR)
+        raw_resp = self.recvall()
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
@@ -82,12 +140,11 @@ class HTTPClient:
         if command == "POST":
             return self.POST(url, args)
         else:
-            return self.GET(url, args)
+            return self.GET(url)
 
 
 if __name__ == "__main__":
     client = HTTPClient()
-    command = "GET"
     if len(sys.argv) <= 1:
         help()
         sys.exit(1)
