@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# Copyright 2016 Abram Hindle, Mattwaster58 https://github.com/tywtyw2002, and https://github.com/treedust
+# Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
+# Copyright 2023 Mattwmaster58
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +19,8 @@
 # Write your own HTTP GET and POST
 # The point is to understand what you have to send and get experience with it
 
-import re
 import socket
 import sys
-from _socket import SHUT_WR
 # you may use urllib to encode data appropriately
 
 from dataclasses import dataclass, field
