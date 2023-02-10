@@ -48,6 +48,7 @@ class HTTPRequest:
         self.port = parsed.port or 80
         self.host = parsed.netloc.split(":")[0] # netloc != host, apparently. chop port off netloc
         self.path = quote(parsed.path)
+        self.query = ("?" + parsed.query) if parsed.query else ""
         self.headers = {
             **(headers or {}),
             # virtual hosting support
@@ -60,7 +61,7 @@ class HTTPRequest:
     @property
     def serialized(self):
         # urlparse will make path empty? not sure whose fault that is
-        lines = [f"{self.METHOD} {self.path or '/'} HTTP/{self.VERSION}"]
+        lines = [f"{self.METHOD} {(self.path or '/') + self.query} HTTP/{self.VERSION}"]
         for key, val in self.headers.items():
             lines.append(f"{key}: {val}")
         lines.append("")
